@@ -1,6 +1,7 @@
 import express from 'express'
 import cors from 'cors'
 import bcrypt from 'bcryptjs'
+import swaggerUi from 'swagger-ui-express'
 import {
   env
 } from './config/env.js'
@@ -16,12 +17,14 @@ import {
 import {
   events
 } from './websocket/events.js'
+import openapi from './openapi.js'
 
 const app = express()
 app.use(cors({
   origin: env.clientUrl
 }))
 app.use(express.json())
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(openapi))
 
 function handleError(res, error) {
   console.error(error)
@@ -39,7 +42,8 @@ app.get('/', (req, res) => res.json({
   ok: true,
   service: 'iot-be',
   health: '/api/health',
-  api: '/api'
+  api: '/api',
+  docs: '/api-docs'
 }))
 app.get('/api', (req, res) => res.json({
   ok: true,

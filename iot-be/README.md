@@ -24,6 +24,8 @@ Các API HTTP được viết trực tiếp bằng `app.get()` / `app.post()` tr
 
 ## API
 
+Mở giao diện Swagger tại `http://localhost:3000/api-docs` để xem và gọi thử các API.
+
 - `POST /api/auth/register` `{ "username", "password", "fullName" }` → thông tin người dùng
 - `POST /api/auth/login` `{ "username", "password" }` → thông tin người dùng
 - `GET, PUT /api/profile/:id` (hồ sơ gồm các trường trong schema)
