@@ -13,6 +13,9 @@
 .dashboard-heading h1 {
   font-size: 26px;
 }
+.dashboard-heading .feedback {
+  max-width: 680px;
+}
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -115,6 +118,11 @@
   font-weight: 500;
   color: #333;
 }
+.chart-empty {
+  display: grid;
+  align-items: center;
+  padding: 12px !important;
+}
 .dashboard-sidebar {
   display: flex;
   flex-direction: column;
@@ -141,6 +149,11 @@
 .devices-panel > p {
   margin-top: 5px;
 }
+.device-permission-note {
+  color: #8a7048 !important;
+  font-size: 11px !important;
+  line-height: 1.5;
+}
 .device-list {
   margin-top: 8px;
 }
@@ -162,6 +175,13 @@
 .device-row span {
   font-size: 11px;
   color: var(--muted);
+}
+.device-row .device-error {
+  display: block;
+  max-width: 200px;
+  margin-top: 4px;
+  color: #a22626;
+  overflow-wrap: anywhere;
 }
 .device-switch {
   flex-shrink: 0;

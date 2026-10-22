@@ -7,6 +7,8 @@ import { subscribeTelemetry } from './mqtt/mqtt.subscriber.js'
 import { initSocket } from './websocket/socket.js'
 
 await db.query('SELECT 1')
+// Pending commands from a previous process can no longer receive their acknowledgement.
+await db.execute("UPDATE ActionHistory SET status = 'THẤT BẠI' WHERE status = 'LOADING'")
 const server = createServer(app)
 initSocket(server, env.clientUrl)
 subscribeTelemetry(initMqtt())

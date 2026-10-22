@@ -13,6 +13,17 @@ try {
   const seed = (await readFile(new URL('./seed.sql', import.meta.url), 'utf8'))
     .replaceAll('smart_room', databaseName)
   await connection.query(schema)
+
+  const [modeColumn] = await connection.execute(
+    `SELECT COLUMN_NAME FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'ActionHistory' AND COLUMN_NAME = 'mode'`,
+    [name],
+  )
+  if (modeColumn.length) {
+    const migration = await readFile(new URL('./migrations/002_drop_actionhistory_mode.sql', import.meta.url), 'utf8')
+    await connection.query(migration)
+  }
+
   await connection.query(seed)
   console.log(`Database "${name}" initialized.`)
 } finally {

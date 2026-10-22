@@ -1,4 +1,4 @@
-import { defaultProfile } from '../data/mockData'
+import { defaultProfile } from '../data/profileDefaults'
 
 const profileKey = 'smart-room-profile'
 export function readProfile() {

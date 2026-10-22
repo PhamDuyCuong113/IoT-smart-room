@@ -1,0 +1,112 @@
+.auth-page {
+  min-height: 100vh;
+  background: #fff;
+  color: #18302e;
+}
+.auth-panel {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 24px;
+}
+.auth-form-wrap {
+  width: min(100%, 500px);
+}
+.auth-kicker {
+  color: #6e8c7e;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .15em;
+}
+.auth-form-wrap h2 {
+  margin-top: 20px;
+  color: #18302e;
+  font-size: 40px;
+  line-height: 1.15;
+  letter-spacing: -.04em;
+}
+.auth-intro {
+  margin-top: 16px;
+  color: #76847f;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.auth-form {
+  display: grid;
+  gap: 23px;
+  margin-top: 42px;
+}
+.auth-form .field { gap: 9px; }
+.auth-form .field label {
+  color: #354d45;
+  font-size: 14px;
+}
+.auth-form .input {
+  height: 60px;
+  border-color: #dce5df;
+  border-radius: 12px;
+  padding-inline: 17px;
+  font-size: 16px;
+}
+.auth-form .input:focus {
+  border-color: #537c66;
+  outline-color: #8bb99a;
+}
+.auth-submit {
+  width: 100%;
+  height: 52px;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-inline: 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  font-size: 15px;
+}
+.auth-submit:hover:not(:disabled) { background: #333; }
+.auth-submit span { font-size: 22px; font-weight: 400; }
+.auth-error { margin-top: -5px; }
+.auth-role-note {
+  margin-top: 17px;
+  padding: 13px 15px;
+  border: 1px solid #dce8d9;
+  border-radius: 9px;
+  background: #f5f9f2;
+  color: #526b59;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.auth-switch {
+  margin-top: 30px;
+  color: #7c8883;
+  text-align: center;
+  font-size: 14px;
+}
+.auth-switch button {
+  border: 0;
+  background: none;
+  color: #245745;
+  font-size: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-security {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 48px;
+  color: #9aa49f;
+  font-size: 12px;
+}
+.auth-security span { color: #477b61; font-size: 15px; }
+@media (max-width: 560px) {
+  .auth-panel { padding: 34px 22px; }
+  .auth-form-wrap h2 { margin-top: 16px; font-size: 36px; }
+  .auth-form { gap: 20px; margin-top: 34px; }
+  .auth-form .input { height: 54px; }
+  .auth-security { margin-top: 36px; font-size: 10px; }
+}

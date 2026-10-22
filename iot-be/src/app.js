@@ -18,6 +18,7 @@ import {
   events
 } from './websocket/events.js'
 import openapi from './openapi.js'
+import { canControlDevices, createAuthToken, isAdmin, verifyAuthToken } from './auth.js'
 
 const app = express()
 app.use(cors({
@@ -31,6 +32,42 @@ function handleError(res, error) {
   return res.status(error.status || 500).json({
     error: error.message || 'Lỗi máy chủ.'
   })
+}
+
+async function authenticate(req, res, next) {
+  const token = /^Bearer\s+(.+)$/i.exec(req.get('authorization') || '')?.[1]
+  const claims = verifyAuthToken(token)
+  if (!claims) return res.status(401).json({ error: 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.' })
+
+  try {
+    const [users] = await db.execute(
+      'SELECT id, username, fullName, role FROM `User` WHERE id = ?',
+      [claims.sub],
+    )
+    if (!users[0]) return res.status(401).json({ error: 'Tài khoản không còn tồn tại.' })
+    req.user = users[0]
+    return next()
+  } catch (error) {
+    return handleError(res, error)
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (!isAdmin(req.user?.role)) {
+    return res.status(403).json({ error: 'Chỉ quản trị viên mới được thay đổi phân quyền.' })
+  }
+  return next()
+}
+
+function requireDeviceControl(req, res, next) {
+  if (!canControlDevices(req.user?.role)) {
+    return res.status(403).json({ error: 'Tài khoản của bạn chỉ có quyền xem, chưa được phép điều khiển thiết bị.' })
+  }
+  return next()
+}
+
+function publicUser(user) {
+  return { id: user.id, username: user.username, fullName: user.fullName, role: user.role }
 }
 
 function toSqlDate(value) {
@@ -47,7 +84,7 @@ app.get('/', (req, res) => res.json({
 }))
 app.get('/api', (req, res) => res.json({
   ok: true,
-  endpoints: ['/api/health', '/api/auth/register', '/api/auth/login', '/api/profile/:id', '/api/dashboard', '/api/sensor-data', '/api/devices', '/api/activity-history'],
+  endpoints: ['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/me', '/api/users', '/api/users/:id/role', '/api/profile/:id', '/api/dashboard', '/api/sensor-data', '/api/devices/:id/status', '/api/activity-history'],
 }))
 
 app.get('/api/health', async (req, res) => {
@@ -63,13 +100,15 @@ app.get('/api/health', async (req, res) => {
 })
 
 app.post('/api/auth/register', async (req, res) => {
+  let connection
+  let lockAcquired = false
   try {
     let {
       username,
       password,
       fullName
     } = req.body || {}
-    if (typeof username !== 'string' || !username.trim() || !password ||
+    if (typeof username !== 'string' || !username.trim() || typeof password !== 'string' || !password ||
         typeof fullName !== 'string' || !fullName.trim()) {
       return res.status(400).json({
         error: 'username, password và fullName là bắt buộc.'
@@ -81,22 +120,34 @@ app.post('/api/auth/register', async (req, res) => {
     username = username.trim()
     fullName = fullName.trim()
 
-    const [users] = await db.execute('SELECT id FROM `User` WHERE username = ?', [username])
+    connection = await db.getConnection()
+    const [lockRows] = await connection.query("SELECT GET_LOCK('smart_room_auth_register', 5) AS acquired")
+    lockAcquired = Number(lockRows[0]?.acquired) === 1
+    if (!lockAcquired) return res.status(503).json({ error: 'Không thể tạo tài khoản lúc này. Vui lòng thử lại.' })
+
+    const [users] = await connection.execute('SELECT id FROM `User` WHERE username = ?', [username])
     if (users.length) return res.status(409).json({
       error: 'Tên người dùng đã tồn tại.'
     })
 
-    const [result] = await db.execute(
-      'INSERT INTO `User` (username, password, fullName) VALUES (?, ?, ?)',
-      [username, await bcrypt.hash(password, 10), fullName],
+    const [[count]] = await connection.query('SELECT COUNT(*) AS total FROM `User`')
+    const role = Number(count.total) === 0 ? 'admin' : 'viewer'
+    const [result] = await connection.execute(
+      'INSERT INTO `User` (username, password, fullName, role) VALUES (?, ?, ?, ?)',
+      [username, await bcrypt.hash(password, 10), fullName, role],
     )
-    const [created] = await db.execute('SELECT id, username, fullName, role FROM `User` WHERE id = ?', [result.insertId])
-    return res.status(201).json(created[0])
+    const [created] = await connection.execute('SELECT id, username, fullName, role FROM `User` WHERE id = ?', [result.insertId])
+    return res.status(201).json(publicUser(created[0]))
   } catch (error) {
     if (error.code === 'ER_DUP_ENTRY') return res.status(409).json({
       error: 'Tên người dùng đã tồn tại.'
     })
     return handleError(res, error)
+  } finally {
+    if (connection) {
+      if (lockAcquired) await connection.query("SELECT RELEASE_LOCK('smart_room_auth_register')").catch(() => {})
+      connection.release()
+    }
   }
 })
 
@@ -117,7 +168,51 @@ app.post('/api/auth/login', async (req, res) => {
         error: 'Tên đăng nhập hoặc mật khẩu không đúng.'
       })
     }
-    return res.json({ id: user.id, username: user.username, fullName: user.fullName, role: user.role })
+    if (Number(user.id) === env.defaultUserId) {
+      const [admins] = await db.execute("SELECT id FROM `User` WHERE LOWER(role) IN ('admin', 'quản trị viên') LIMIT 1")
+      if (!admins.length) {
+        await db.execute("UPDATE `User` SET role = 'admin' WHERE id = ?", [user.id])
+        user.role = 'admin'
+      }
+    }
+    return res.json({ token: createAuthToken(user.id), user: publicUser(user) })
+  } catch (error) {
+    return handleError(res, error)
+  }
+})
+
+app.get('/api/auth/me', authenticate, (req, res) => res.json(publicUser(req.user)))
+
+app.get('/api/users', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const [users] = await db.execute('SELECT id, username, fullName, role FROM `User` ORDER BY id')
+    return res.json(users)
+  } catch (error) {
+    return handleError(res, error)
+  }
+})
+
+app.patch('/api/users/:id/role', authenticate, requireAdmin, async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    const role = String(req.body?.role || '').trim().toLowerCase()
+    if (!Number.isInteger(id) || id < 1) return res.status(400).json({ error: 'ID người dùng không hợp lệ.' })
+    if (!['admin', 'operator', 'viewer'].includes(role)) {
+      return res.status(400).json({ error: 'Vai trò phải là admin, operator hoặc viewer.' })
+    }
+
+    const [users] = await db.execute('SELECT id, username, fullName, role FROM `User` WHERE id = ?', [id])
+    const target = users[0]
+    if (!target) return res.status(404).json({ error: 'Không tìm thấy người dùng.' })
+    if (isAdmin(target.role) && role !== 'admin') {
+      const [rows] = await db.execute("SELECT COUNT(*) AS total FROM `User` WHERE LOWER(role) IN ('admin', 'quản trị viên')")
+      if (Number(rows[0].total) <= 1) {
+        return res.status(409).json({ error: 'Hãy cấp quyền quản trị cho người khác trước khi hạ quyền quản trị viên cuối cùng.' })
+      }
+    }
+
+    await db.execute('UPDATE `User` SET role = ? WHERE id = ?', [role, id])
+    return res.json({ ...publicUser(target), role })
   } catch (error) {
     return handleError(res, error)
   }
@@ -208,23 +303,28 @@ app.get('/api/sensor-data', async (req, res) => {
     } = req.query
     const page = Math.max(1, Number(req.query.page) || 1)
     const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 10))
-    const columns = {
-      time: "DATE_FORMAT(d.recorded_at, '%d/%m/%Y %H:%i:%s')",
-      value: "CONCAT(d.value, ' ', s.unit)",
-      device: 's.name',
-      id: 'd.id',
+    const sensorNames = {
+      light: 'Cảm biến ánh sáng',
+      humidity: 'DHT11 - Độ ẩm',
+      temperature: 'DHT11 - Nhiệt độ',
+    }
+    if (!['all', 'time', ...Object.keys(sensorNames)].includes(by)) {
+      return res.status(400).json({ error: 'Tiêu chí tìm kiếm cảm biến không hợp lệ.' })
     }
     const where = []
     const values = []
+    if (Object.hasOwn(sensorNames, by)) {
+      where.push('s.name = ?')
+      values.push(sensorNames[by])
+    }
     if (q) {
-      if (by === 'id') {
-        where.push('d.id = ?')
-        values.push(Number(q) || -1)
-      } else if (by === 'all') {
+      if (by === 'all') {
         where.push("(CAST(d.id AS CHAR) LIKE ? OR CONCAT(d.value, ' ', s.unit) LIKE ? OR s.name LIKE ? OR DATE_FORMAT(d.recorded_at, '%d/%m/%Y %H:%i:%s') LIKE ?)")
         values.push(...Array(4).fill(`%${q}%`))
       } else {
-        where.push(`${columns[by] || columns.device} LIKE ?`)
+        where.push(by === 'time'
+          ? "DATE_FORMAT(d.recorded_at, '%d/%m/%Y %H:%i:%s') LIKE ?"
+          : "CONCAT(d.value, ' ', s.unit) LIKE ?")
         values.push(`%${q}%`)
       }
     }
@@ -283,8 +383,10 @@ app.post('/api/sensor-data', async (req, res) => {
   }
 })
 
-app.patch('/api/devices/:id/status', async (req, res) => {
+app.patch('/api/devices/:id/status', authenticate, requireDeviceControl, async (req, res) => {
   let connection
+  let historyId
+  let historyCompleted = false
   try {
     const id = Number(req.params.id)
     if (![1, 2, 3].includes(id)) return res.status(400).json({
@@ -299,6 +401,13 @@ app.patch('/api/devices/:id/status', async (req, res) => {
     if (!devices[0]) return res.status(404).json({
       error: 'Không tìm thấy thiết bị.'
     })
+    const [history] = await db.execute(
+      `INSERT INTO ActionHistory (user_id, device_id, action, status)
+       VALUES (?, ?, ?, 'LOADING')`,
+      [req.user.id, id, status === 'ON' ? 'BẬT' : 'TẮT'],
+    )
+    historyId = history.insertId
+    emit(events.activity, { id: historyId, status: 'LOADING' })
     const response = await sendDeviceCommand(id, status === 'ON')
     const actualStatus = response.actualState ? 'ON' : 'OFF'
 
@@ -306,16 +415,28 @@ app.patch('/api/devices/:id/status', async (req, res) => {
     await connection.beginTransaction()
     await connection.execute('UPDATE Device SET status = ? WHERE id = ?', [actualStatus, id])
     await connection.execute(
-      `INSERT INTO ActionHistory (user_id, device_id, action, status, mode)
-       VALUES (?, ?, ?, 'THÀNH CÔNG', 'THỦ CÔNG')`,
-      [null, id, actualStatus === 'ON' ? 'BẬT' : 'TẮT'],
+      "UPDATE ActionHistory SET status = 'THÀNH CÔNG' WHERE id = ?",
+      [historyId],
     )
     await connection.commit()
+    historyCompleted = true
+    emit(events.activity, { id: historyId, status: 'THÀNH CÔNG' })
     const [updated] = await connection.execute('SELECT id, name, status FROM Device WHERE id = ?', [id])
     emit(events.device, updated[0])
     return res.json(updated[0])
   } catch (error) {
     if (connection) await connection.rollback().catch(() => {})
+    if (historyId && !historyCompleted) {
+      try {
+        await db.execute(
+          "UPDATE ActionHistory SET status = 'THẤT BẠI' WHERE id = ? AND status = 'LOADING'",
+          [historyId],
+        )
+        emit(events.activity, { id: historyId, status: 'THẤT BẠI' })
+      } catch (historyError) {
+        console.error('Không thể ghi lịch sử thao tác thất bại:', historyError)
+      }
+    }
     return handleError(res, error)
   } finally {
     if (connection) connection.release()
@@ -356,7 +477,7 @@ app.get('/api/activity-history', async (req, res) => {
       values,
     )
     const [data] = await db.execute(
-      `SELECT a.id, d.name AS device, a.action, a.status, a.mode,
+      `SELECT a.id, d.name AS device, a.action, a.status,
         COALESCE(u.username, 'Hệ thống') AS user, a.recorded_at AS time
        FROM ActionHistory a JOIN Device d ON d.id = a.device_id
        LEFT JOIN \`User\` u ON u.id = a.user_id ${clause}

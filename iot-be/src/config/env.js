@@ -10,6 +10,8 @@ export const env = {
     name: process.env.DB_NAME || 'smart_room',
   },
   clientUrl: process.env.CLIENT_URL || 'http://localhost:5173',
+  authSecret: process.env.AUTH_SECRET?.trim() || '',
+  defaultUserId: process.env.DEFAULT_USER_ID?.trim() ? Number(process.env.DEFAULT_USER_ID) : null,
   mqtt: {
     url: process.env.MQTT_URL || '',
     username: process.env.MQTT_USERNAME || '',

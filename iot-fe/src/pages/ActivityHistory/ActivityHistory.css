@@ -10,7 +10,9 @@
 .history-filters {
   padding: 12px 16px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(130px, 1.1fr) minmax(105px, .8fr) minmax(140px, 1fr)
+    minmax(150px, 1fr) minmax(185px, 1.3fr) auto minmax(110px, .8fr) auto;
   gap: 10px;
   margin-bottom: 22px;
   align-items: end;
@@ -19,19 +21,21 @@
   gap: 5px;
 }
 .history-filters .input,
-.history-filter-actions .button {
+.history-filters .button {
   height: 36px;
 }
 .history-filters .field label {
   font-size: 11px;
 }
-.history-filter-actions {
-  display: contents;
-  gap: 8px;
-}
-.history-filter-actions .button {
+.history-filters .button {
   min-width: 0;
   padding-inline: 12px;
+  white-space: nowrap;
+}
+.history-filters .history-reset-button {
+  padding-inline: 10px;
+  font-size: 12px;
+  justify-self: start;
 }
 .history-error {
   grid-column: 1 / -1;
@@ -118,7 +122,12 @@
   border-color: #f5c8c5;
   color: #a8322a;
 }
-@media (max-width: 1150px) {
+.badge-loading {
+  background: #fff4d6;
+  border-color: #eed38a;
+  color: #856000;
+}
+@media (max-width: 1100px) {
   .history-filters {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
@@ -135,14 +144,8 @@
   .history-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .history-time,
-  .history-sort-field {
+  .history-time {
     grid-column: 1 / -1;
-  }
-  .history-filter-actions {
-    display: grid;
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .history-table-panel {
     min-height: 0;
