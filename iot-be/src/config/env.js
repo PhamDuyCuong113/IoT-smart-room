@@ -19,5 +19,6 @@ export const env = {
     telemetryTopic: process.env.MQTT_TELEMETRY_TOPIC || 'data/sensor',
     deviceTopic: process.env.MQTT_DEVICE_TOPIC || 'device/control',
     responseTopic: process.env.MQTT_RESPONSE_TOPIC || 'device/response',
+    virtualAlertsTopic: process.env.MQTT_VIRTUAL_ALERTS_TOPIC || 'sensor/virtual-alerts',
   },
 }

@@ -4,6 +4,7 @@ import SensorData from './pages/SensorData/SensorData'
 import ActivityHistory from './pages/ActivityHistory/ActivityHistory'
 import Profile from './pages/Profile/Profile'
 import AuthPage from './pages/Auth/AuthPage'
+import BlinkCounts from './pages/BlinkCounts/BlinkCounts'
 import { clearAuthToken, getAuthToken, getCurrentUser } from './api/client'
 import { canControlDevices } from './utils/roles'
 import './App.css'
@@ -12,6 +13,7 @@ const routes = {
   '/dashboard': { component: Dashboard, title: 'Dashboard' },
   '/sensor-data': { component: SensorData, title: 'Dữ liệu cảm biến' },
   '/activity-history': { component: ActivityHistory, title: 'Lịch sử hoạt động' },
+  '/blink-counts': { component: BlinkCounts, title: 'Đếm nháy đèn' },
   '/profile': { component: Profile, title: 'Hồ sơ' },
 }
 

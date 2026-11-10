@@ -4,11 +4,20 @@ import { handleTelemetry } from './telemetry.handler.js'
 import { receiveDeviceResponse } from './mqtt.client.js'
 import { emit } from '../websocket/socket.js'
 import { events } from '../websocket/events.js'
+import { handleVirtualAlerts } from './virtual-alerts.handler.js'
 
 export function subscribeTelemetry(client) {
   if (!client) return
-  client.subscribe([mqttConfig.telemetryTopic, mqttConfig.responseTopic])
+  let alertQueue = Promise.resolve()
+  const subscribe = () => client.subscribe([mqttConfig.telemetryTopic, mqttConfig.responseTopic, mqttConfig.virtualAlertsTopic])
+  client.on('connect', subscribe)
+  if (client.connected) subscribe()
   client.on('message', (topic, payload) => {
+    if (topic === mqttConfig.virtualAlertsTopic) {
+      alertQueue = alertQueue.then(() => handleVirtualAlerts(payload))
+        .catch((error) => console.error('Virtual alerts:', error.message))
+      return
+    }
     if (topic === mqttConfig.telemetryTopic) {
       handleTelemetry(payload).catch((error) => console.error('Telemetry:', error.message))
       return

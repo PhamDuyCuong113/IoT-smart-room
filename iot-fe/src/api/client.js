@@ -105,3 +105,11 @@ export function setDeviceStatus(id, status) {
     body: JSON.stringify({ status }),
   })
 }
+
+export function getVirtualAlerts({ signal } = {}) {
+  return request('/virtual-alerts', { signal })
+}
+
+export function getVirtualAlertDaily(parameters, { signal } = {}) {
+  return request(`/virtual-alerts/daily?${queryString(parameters)}`, { signal })
+}

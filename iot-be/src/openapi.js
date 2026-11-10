@@ -36,6 +36,31 @@ const openapi = {
     { name: 'History' },
   ],
   paths: {
+    '/api/virtual-alerts': {
+      get: {
+        tags: ['Sensor'], summary: 'Trạng thái ba LED cảnh báo cảm biến ảo',
+        security: [{ bearerAuth: [] }],
+        parameters: [{ name: 'esp32Id', in: 'query', schema: { type: 'string', default: 'ESP32-01' } }],
+        responses: {
+          200: { description: 'leds gồm sensorId, name, pin, hasData, sensorValue, y, threshold, alertActive, hardwareLedOn, timeSynced, date và receivedAt (UTC ISO).', content: json({ type: 'object' }) },
+          400: error, 401: error, 500: error,
+        },
+      },
+    },
+    '/api/virtual-alerts/daily': {
+      get: {
+        tags: ['Sensor'], summary: 'Số lượt cảnh báo theo ngày GMT+7, tối đa 31 ngày',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          { name: 'esp32Id', in: 'query', schema: { type: 'string', default: 'ESP32-01' } },
+          ...['from', 'to'].map((name) => ({ name, in: 'query', schema: { type: 'string', format: 'date' } })),
+        ],
+        responses: {
+          200: { description: 'Mặc định lọc 7 ngày gần nhất. Chỉ trả ngày có bản ghi trong MySQL, sắp xếp giảm dần; gồm sensor1/sensor2/sensor3 và total. Không có bản ghi trả data rỗng. Một lượt là bắt đầu một đợt vượt ngưỡng.', content: json({ type: 'object' }) },
+          400: error, 401: error, 500: error,
+        },
+      },
+    },
     '/api/health': {
       get: {
         tags: ['Dashboard'],

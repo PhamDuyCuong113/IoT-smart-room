@@ -19,6 +19,27 @@
   margin-left: 0;
   width: 120px;
 }
+.sensor-sort-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sensor-sort-controls .input {
+  min-width: 0;
+  flex: 1;
+}
+.sensor-sort-controls .sensor-reload {
+  flex: 0 0 40px;
+  width: 40px;
+  padding: 0;
+  color: #222;
+}
+.sensor-reload svg {
+  display: block;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+}
 .sensor-table-panel {
   min-height: 0;
 }

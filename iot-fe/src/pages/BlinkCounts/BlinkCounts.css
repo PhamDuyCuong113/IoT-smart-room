@@ -1,0 +1,25 @@
+.blink-page { display: grid; gap: 20px; }
+.blink-page > p { color: #555; line-height: 1.6; }
+.blink-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.blink-card { display: grid; gap: 14px; padding: 24px; }
+.blink-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.blink-card p { color: #666; font-size: 13px; line-height: 1.5; }
+.blink-card-heading p { margin-top: 6px; }
+.virtual-led { display: grid; place-items: center; flex: 0 0 56px; width: 56px; height: 56px; border-radius: 50%; color: #888; background: #f1f1f1; }
+.virtual-led svg { flex-shrink: 0; }
+.virtual-led.is-alert { color: #b83a20; background: #fff0e9; animation: virtual-warning 1s steps(1, end) infinite; }
+.blink-status { font-size: 14px; }
+.blink-status.is-alert { color: #b83a20; }
+.blink-reading { display: flex; align-items: baseline; gap: 8px; }
+.blink-reading strong { font-size: 34px; }
+.blink-reading span { color: #777; }
+.blink-card .blink-note { font-size: 12px; }
+.blink-filters { display: flex; align-items: end; flex-wrap: wrap; gap: 16px; padding: 20px; }
+.blink-filters label { display: grid; gap: 8px; font-size: 13px; }
+.blink-filters > span { font-size: 12px; align-self: center; }
+.blink-table-wrap { overflow-x: auto; }
+.blink-table-wrap table { min-width: 650px; }
+@keyframes virtual-warning { 0% { opacity: 1; } 50% { opacity: .15; } }
+@media (prefers-reduced-motion: reduce) { .virtual-led.is-alert { animation: none; } }
+@media (max-width: 850px) { .blink-cards { grid-template-columns: 1fr; } }
+@media (max-width: 480px) { .blink-filters label, .blink-filters .button { width: 100%; } }

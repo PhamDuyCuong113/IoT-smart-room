@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { io } from 'socket.io-client'
+import { useEffect, useState } from 'react'
 import PageHeading from '../../components/PageHeading'
 import Pagination from '../../components/Pagination'
-import { getSensorData, getSocketOrigin } from '../../api/client'
+import { getSensorData } from '../../api/client'
 import './SensorData.css'
 
 const searchOptions = [
@@ -23,9 +22,9 @@ export default function SensorData() {
   const [records, setRecords] = useState([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [hasLoaded, setHasLoaded] = useState(false)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
-  const refreshTimer = useRef(null)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -37,13 +36,14 @@ export default function SensorData() {
       limit: pageSize,
     }, { signal: controller.signal })
       .then((result) => {
+        if (controller.signal.aborted) return
         setRecords(Array.isArray(result.data) ? result.data : [])
         setTotal(Number(result.total) || 0)
+        setHasLoaded(true)
+        setError('')
       })
       .catch((requestError) => {
-        if (requestError.name !== 'AbortError') {
-          setRecords([])
-          setTotal(0)
+        if (!controller.signal.aborted && requestError.name !== 'AbortError') {
           setError(requestError.message)
         }
       })
@@ -53,31 +53,9 @@ export default function SensorData() {
     return () => controller.abort()
   }, [filters, sortOrder, page, pageSize, refreshKey])
 
-  useEffect(() => {
-    const socket = io(getSocketOrigin())
-    let connectedOnce = false
-    socket.on('connect', () => {
-      if (connectedOnce) setRefreshKey((current) => current + 1)
-      else connectedOnce = true
-    })
-    socket.on('sensor:new', () => {
-      window.clearTimeout(refreshTimer.current)
-      refreshTimer.current = window.setTimeout(() => {
-        setLoading(true)
-        setError('')
-        setRefreshKey((current) => current + 1)
-      }, 300)
-    })
-    return () => {
-      window.clearTimeout(refreshTimer.current)
-      socket.disconnect()
-    }
-  }, [])
-
   function search(event) {
     event.preventDefault()
     setLoading(true)
-    setError('')
     setFilters({ q: query.trim(), by: searchBy })
     setPage(1)
   }
@@ -105,21 +83,35 @@ export default function SensorData() {
             ))}
           </select>
         </div>
-          <button className="button button-primary" type="submit" disabled={loading}>
+        <button className="button button-primary" type="submit" disabled={loading}>
           Tìm kiếm
         </button>
         <div className="field sensor-sort-field">
           <label htmlFor="sensor-sort">Sắp xếp theo</label>
-          <select id="sensor-sort" className="input" value={sortOrder}
-            onChange={(event) => {
-              setLoading(true)
-              setError('')
-              setSortOrder(event.target.value)
-              setPage(1)
-            }}>
-            <option value="newest">Mới nhất</option>
-            <option value="oldest">Cũ nhất</option>
-          </select>
+          <div className="sensor-sort-controls">
+            <select id="sensor-sort" className="input" value={sortOrder}
+              onChange={(event) => {
+                setLoading(true)
+                setSortOrder(event.target.value)
+                setPage(1)
+              }}>
+              <option value="newest">Mới nhất</option>
+              <option value="oldest">Cũ nhất</option>
+            </select>
+            <button className="button sensor-reload" type="button"
+              title="Tải lại dữ liệu" aria-label="Tải lại dữ liệu" disabled={loading}
+              onClick={() => {
+                setLoading(true)
+                setRefreshKey((current) => current + 1)
+              }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true" focusable="false">
+                <path d="M20 7v5h-5" />
+                <path d="M20 12a8 8 0 1 0-2.34 5.66M20 7v5" />
+              </svg>
+            </button>
+          </div>
         </div>
       </form>
       {error && <p className="feedback feedback-error" role="alert">Không thể tải dữ liệu cảm biến: {error}</p>}
@@ -134,7 +126,7 @@ export default function SensorData() {
             </tr>
           </thead>
           <tbody>
-            {loading ? (
+            {loading && !hasLoaded ? (
               <tr><td colSpan={4} className="empty-state">Đang tải dữ liệu…</td></tr>
             ) : records.length ? (
               records.map((record) => (
@@ -162,13 +154,12 @@ export default function SensorData() {
         onPageChange={(nextPage) => {
           if (nextPage !== page) {
             setLoading(true)
-            setError('')
             setPage(nextPage)
           }
         }}
         onPageSizeChange={(size) => {
+          if (size === pageSize) return
           setLoading(true)
-          setError('')
           setPageSize(size)
           setPage(1)
         }}

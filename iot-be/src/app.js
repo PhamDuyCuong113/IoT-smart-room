@@ -1,3 +1,4 @@
+import { dailyRange, getVirtualAlertState, getVirtualAlertDaily } from './mqtt/virtual-alerts.handler.js'
 import express from 'express'
 import cors from 'cors'
 import bcrypt from 'bcryptjs'
@@ -84,7 +85,7 @@ app.get('/', (req, res) => res.json({
 }))
 app.get('/api', (req, res) => res.json({
   ok: true,
-  endpoints: ['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/me', '/api/users', '/api/users/:id/role', '/api/profile/:id', '/api/dashboard', '/api/sensor-data', '/api/devices/:id/status', '/api/activity-history'],
+  endpoints: ['/api/health', '/api/auth/register', '/api/auth/login', '/api/auth/me', '/api/users', '/api/users/:id/role', '/api/profile/:id', '/api/dashboard', '/api/sensor-data', '/api/devices/:id/status', '/api/activity-history', '/api/virtual-alerts', '/api/virtual-alerts/daily'],
 }))
 
 app.get('/api/health', async (req, res) => {
@@ -493,6 +494,32 @@ app.get('/api/activity-history', async (req, res) => {
   } catch (error) {
     return handleError(res, error)
   }
+})
+
+function virtualEsp32Id(req) {
+  const id = req.query.esp32Id ?? 'ESP32-01'
+  if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+    const error = new Error('esp32Id không hợp lệ.')
+    error.status = 400
+    throw error
+  }
+  return id
+}
+
+app.get('/api/virtual-alerts', authenticate, async (req, res) => {
+  try {
+    return res.json(await getVirtualAlertState(virtualEsp32Id(req)))
+  } catch (error) { return handleError(res, error) }
+})
+
+app.get('/api/virtual-alerts/daily', authenticate, async (req, res) => {
+  try {
+    const esp32Id = virtualEsp32Id(req)
+    let range
+    try { range = dailyRange(req.query.from, req.query.to) }
+    catch (error) { error.status = 400; throw error }
+    return res.json(await getVirtualAlertDaily(esp32Id, range.from, range.to))
+  } catch (error) { return handleError(res, error) }
 })
 
 app.use((req, res) => res.status(404).json({
