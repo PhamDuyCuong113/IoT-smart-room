@@ -1,6 +1,8 @@
 import { db } from '../config/database.js'
-import { emit } from '../websocket/socket.js'
-import { events } from '../websocket/events.js'
+import { emit } from '../integrations/websocket/socket.js'
+import { events } from '../integrations/websocket/events.js'
+import { authenticate } from '../middlewares/authenticate.js'
+import { HttpError } from '../shared/http-error.js'
 
 export const virtualSensors = [
   { sensorId: 'sensor1', name: 'Cảm biến ảo 1', pin: 25 },
@@ -48,8 +50,8 @@ export function validateVirtualAlerts(data) {
   return { ...data, date: data.timeSynced ? date : null }
 }
 
-export async function handleVirtualAlerts(payload) {
-  const data = validateVirtualAlerts(JSON.parse(payload.toString()))
+export async function saveVirtualAlerts(snapshot) {
+  const data = validateVirtualAlerts(snapshot)
   const connection = await db.getConnection()
   try {
     await connection.beginTransaction()
@@ -74,20 +76,32 @@ export async function handleVirtualAlerts(payload) {
   } catch (error) {
     await connection.rollback()
     throw error
-  } finally { connection.release() }
+  } finally {
+    connection.release()
+  }
   emit(events.virtualAlerts, { esp32Id: data.esp32Id })
 }
 
 export async function getVirtualAlertState(esp32Id) {
   const [rows] = await db.execute('SELECT * FROM VirtualAlertState WHERE esp32_id = ?', [esp32Id])
-  return { esp32Id, leds: virtualSensors.map((sensor) => {
-    const row = rows.find((item) => item.sensor_id === sensor.sensorId)
-    return { ...sensor, hasData: Boolean(row), sensorValue: row?.value ?? null,
-      y: row?.max_value ?? 100, threshold: row?.threshold ?? 50,
-      alertActive: Boolean(row?.alert_active), hardwareLedOn: Boolean(row?.hardware_led_on),
-      timeSynced: Boolean(row?.time_synced), date: row?.alert_date ?? null,
-      receivedAt: row ? new Date(row.received_at.replace(' ', 'T') + 'Z').toISOString() : null }
-  }) }
+  return {
+    esp32Id,
+    leds: virtualSensors.map((sensor) => {
+      const row = rows.find((item) => item.sensor_id === sensor.sensorId)
+      return {
+        ...sensor,
+        hasData: Boolean(row),
+        sensorValue: row?.value ?? null,
+        y: row?.max_value ?? 100,
+        threshold: row?.threshold ?? 50,
+        alertActive: Boolean(row?.alert_active),
+        hardwareLedOn: Boolean(row?.hardware_led_on),
+        timeSynced: Boolean(row?.time_synced),
+        date: row?.alert_date ?? null,
+        receivedAt: row ? new Date(row.received_at.replace(' ', 'T') + 'Z').toISOString() : null,
+      }
+    }),
+  }
 }
 
 export async function getVirtualAlertDaily(esp32Id, from, to) {
@@ -101,8 +115,36 @@ export async function getVirtualAlertDaily(esp32Id, from, to) {
      GROUP BY alert_date ORDER BY alert_date DESC`,
     [esp32Id, from, to],
   )
-  const data = rows.map((row) => ({ date: row.date, ...Object.fromEntries(
-    ['sensor1', 'sensor2', 'sensor3', 'total'].map((key) => [key, row[key] === null ? null : Number(row[key])]),
-  ) }))
+  const data = rows.map((row) => ({
+    date: row.date,
+    ...Object.fromEntries(
+      ['sensor1', 'sensor2', 'sensor3', 'total'].map((key) => [key, row[key] === null ? null : Number(row[key])]),
+    ),
+  }))
   return { esp32Id, from, to, data }
+}
+
+export function registerVirtualAlertRoutes(app) {
+  app.get('/api/virtual-alerts', authenticate, async (req, res) => {
+    const id = req.query.esp32Id ?? 'ESP32-01'
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+      throw new HttpError(400, 'esp32Id không hợp lệ.')
+    }
+    return res.json(await getVirtualAlertState(id))
+  })
+
+  app.get('/api/virtual-alerts/daily', authenticate, async (req, res) => {
+    const id = req.query.esp32Id ?? 'ESP32-01'
+    if (typeof id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+      throw new HttpError(400, 'esp32Id không hợp lệ.')
+    }
+    let range
+    try {
+      range = dailyRange(req.query.from, req.query.to)
+    } catch (error) {
+      error.status = 400
+      throw error
+    }
+    return res.json(await getVirtualAlertDaily(id, range.from, range.to))
+  })
 }

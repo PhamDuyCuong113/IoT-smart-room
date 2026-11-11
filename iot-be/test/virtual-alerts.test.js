@@ -1,3 +1,4 @@
+import './setup-test-env.js'
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
@@ -5,11 +6,12 @@ import { createServer } from 'node:http'
 import { EventEmitter, once } from 'node:events'
 import app from '../src/app.js'
 import { db } from '../src/config/database.js'
-import { createAuthToken } from '../src/auth.js'
+import { createAuthToken } from '../src/shared/security/tokens.js'
 import { mqttConfig } from '../src/config/mqtt.config.js'
-import { subscribeTelemetry } from '../src/mqtt/mqtt.subscriber.js'
-import { initSocket } from '../src/websocket/socket.js'
-import { validateVirtualAlerts, handleVirtualAlerts, dailyRange } from '../src/mqtt/virtual-alerts.handler.js'
+import { subscribeTelemetry } from '../src/integrations/mqtt/mqtt.subscriber.js'
+import { initSocket } from '../src/integrations/websocket/socket.js'
+import { handleVirtualAlerts } from '../src/integrations/mqtt/virtual-alerts.handler.js'
+import { saveVirtualAlerts } from '../src/modules/virtual-alerts.js'
 
 const esp32Id = `test-${randomUUID()}`
 const snapshot = (count = 0, date = '20261104') => ({
@@ -19,30 +21,7 @@ const snapshot = (count = 0, date = '20261104') => ({
     sensorValue: 49 + index, alertActive: index === 2, hardwareLedOn: index === 2, alertsToday: count,
   })),
 })
-const send = (data) => handleVirtualAlerts(Buffer.from(JSON.stringify(data)))
-
-test('virtual alert validation', () => {
-  assert.equal(validateVirtualAlerts(snapshot()).date, '2026-11-04')
-  for (const mutate of [
-    s => { s.leds.pop() },
-    s => { s.leds[0].sensorId = 'sensor2' },
-    s => { s.leds[0].sensorValue = 100 },
-    s => { s.leds[0].threshold = 60 },
-    s => { s.leds[0].alertActive = true },
-    s => { s.leds[0].hardwareLedOn = true },
-    s => { s.leds[0].alertsToday = -1 },
-    s => { s.leds[0].alertActive = 'false' },
-    s => { s.date = '20260230' },
-  ]) {
-    const s = snapshot(); mutate(s)
-    assert.throws(() => validateVirtualAlerts(s))
-  }
-  assert.equal(validateVirtualAlerts({ ...snapshot(), timeSynced: false, date: '' }).date, null)
-  assert.throws(() => dailyRange('2026-10-01', '2026-11-01'))
-  assert.throws(() => dailyRange('2026-11-05', '2026-11-04'))
-  assert.throws(() => dailyRange('2026-02-30', '2026-03-01'))
-  assert.deepEqual(dailyRange('2026-11-01', '2026-11-30'), { from: '2026-11-01', to: '2026-11-30' })
-})
+const send = (data) => saveVirtualAlerts(data)
 
 test('MySQL, API and MQTT virtual alerts integration (isolated fixture)', async (t) => {
   const server = createServer(app)

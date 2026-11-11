@@ -8,8 +8,12 @@
   },
   "scripts": {
     "db:init": "node database/init.js",
+    "db:init:test": "node database/init-test.js",
     "dev": "node --watch src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "test": "npm run test:unit",
+    "test:unit": "node --test test/unit/virtual-alerts.validation.test.js test/unit/devices.routes.test.js",
+    "test:integration": "node test/run-integration.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

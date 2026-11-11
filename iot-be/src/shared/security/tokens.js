@@ -1,5 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto'
-import { env } from './config/env.js'
+import { env } from '../../config/env.js'
 
 const secret = env.authSecret || randomBytes(32).toString('hex')
 const tokenLifetimeSeconds = 60 * 60 * 12
@@ -36,20 +36,4 @@ export function verifyAuthToken(token) {
   } catch {
     return null
   }
-}
-
-export function canControlDevices(role) {
-  const normalized = String(role || '').trim().toLocaleLowerCase('vi')
-  return [
-    'admin',
-    'operator',
-    'quản trị viên',
-    'người điều khiển',
-    // Keep accounts created before role-based access was added operational.
-    'người dùng',
-  ].includes(normalized)
-}
-
-export function isAdmin(role) {
-  return ['admin', 'quản trị viên'].includes(String(role || '').trim().toLocaleLowerCase('vi'))
 }

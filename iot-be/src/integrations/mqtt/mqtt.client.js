@@ -1,17 +1,21 @@
 import mqtt from 'mqtt'
 import { randomUUID } from 'node:crypto'
-import { mqttConfig } from '../config/mqtt.config.js'
+import { mqttConfig } from '../../config/mqtt.config.js'
 
 let client
 const pending = new Map()
 
 export function initMqtt() {
-  if (!mqttConfig.url) return null
+  if (!mqttConfig.url) {
+    console.warn('[MQTT] Chưa cấu hình MQTT_URL; backend không nhận dữ liệu ESP32 qua MQTT.')
+    return null
+  }
   client = mqtt.connect(mqttConfig.url, {
     username: mqttConfig.username || undefined,
     password: mqttConfig.password || undefined,
   })
   client.on('connect', () => console.log('MQTT connected'))
+  client.on('offline', () => console.warn('[MQTT] Mất kết nối Broker, đang chờ kết nối lại.'))
   client.on('error', (error) => console.error('MQTT:', error.message))
   return client
 }
